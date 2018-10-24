@@ -61,12 +61,13 @@ static float yCannon = -100.0; // translate for cannon
 static int gameOver = 0; // if game is over, probably started a final animation
 static int canShoot = 1; // cannon ready to fire
 int score = 0; //score of the game
-int hit, alienHiti, alienHitj = 0;
+int hit, alienHiti, alienHitj, alienHitk = 0;
 float blow = 3;
 
 
 #define ROWS 4  // Number of rows of Aliens.
 #define COLUMNS 8 // Number of columns of Aliens.
+#define AISLES 4 // Number of layers (z) of aliens
 
 using namespace std;
 
@@ -120,7 +121,8 @@ Alien::Alien(float x, float y, float z, float r, unsigned char colorR,
     color[1] = colorG;
     color[2] = colorB;
 }
-void alienHit(int i, int j, float x);
+void alienHit(int i, int j, int k, float x);
+
 // Alien change location
 void Alien::adjustCenter(float x, float y, float z)
 {
@@ -150,7 +152,7 @@ void Alien::draw()
     }
 }
 
-Alien arrayAliens[ROWS][COLUMNS]; // Global array of Aliens.
+Alien arrayAliens[ROWS][COLUMNS][AISLES]; // Global array of Aliens.
 Alien cannonBall;
 
 
@@ -167,16 +169,17 @@ int checkSpheresIntersection(float x1, float y1, float z1, float r1,
 // Collision detection is approximate as instead of the cannon we use a bounding sphere.
 int AlienCraftCollision(float x, float z, float a)
 {
-    int i,j;
+    int i,j,k;
     
     // Check for collision with each Alien.
     for (j=0; j<COLUMNS; j++)
         for (i=0; i<ROWS; i++)
-            if (arrayAliens[i][j].getRadius() > 0 ){ // If Alien exists.
-                if ( checkSpheresIntersection( x - 5 * sin( (PI/180.0) * a), 0.0,
+            for (k=0; k<AISLES; k++)
+                if (arrayAliens[i][j][k].getRadius() > 0 ){ // If Alien exists.
+                    if ( checkSpheresIntersection( x - 5 * sin( (PI/180.0) * a), 0.0,
                                               z - 5 * cos( (PI/180.0) * a), 7.072,
-                                              arrayAliens[i][j].getCenterX(), arrayAliens[i][j].getCenterY(),
-                                              arrayAliens[i][j].getCenterZ(), arrayAliens[i][j].getRadius() ) ){
+                                              arrayAliens[i][j][k].getCenterX(), arrayAliens[i][j][k].getCenterY(),
+                                              arrayAliens[i][j][k].getCenterZ(), arrayAliens[i][j][k].getRadius() ) ){
                     return 1;
                     
                 }
@@ -219,13 +222,13 @@ void displayScore(){
 void drawScene(void)
 {
     
-    int i, j;
+    int i, j, k;
     glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     glLoadIdentity();
     
-    gluLookAt(0.0, 5.0, 20.0,  0.0, 5.0, 0.0,  0.0, 1.0, 0.0);
-    //    gluLookAt(0.0, -150.0, 5.0,  0.0, 20.0, 0.0,  0.0, 1.0, 0.0);
+//    gluLookAt(0.0, 5.0, 20.0,  0.0, 5.0, 0.0,  0.0, 1.0, 0.0);
+        gluLookAt(0.0, -150.0, 5.0,  0.0, 20.0, 0.0,  0.0, 1.0, 0.0);
     //    gluLookAt(125.0, -90.0, zPlane,  0.0, -90.0, zPlane,  0.0, 1.0, 0.0); // side view
     //    gluLookAt(25.0, -100.0, zPlane,  0.0, -100.0, zPlane,  0.0, 1.0, 0.0); // side close up
     
@@ -234,14 +237,15 @@ void drawScene(void)
     // Draw all the Aliens (with radius > 0) in arrayAliens
     for (j=0; j<COLUMNS; j++)
         for (i=0; i<ROWS; i++)
-            arrayAliens[i][j].draw();
+            for (k=0; k<AISLES; k++)
+                arrayAliens[i][j][k].draw();
     
     cannonBall.draw(); // only appears if r>0
     
     glTranslatef(xVal, yCannon, zPlane);
     glCallList(cannon);
     
-    if(score == 320){
+    if(score >= 320){
         gameOver = 1;
         displayEndText("Winner!");
     }
@@ -250,7 +254,7 @@ void drawScene(void)
     }
     
     if(hit == 1){
-        alienHit(alienHiti, alienHitj, blow);
+        alienHit(alienHiti, alienHitj, alienHitk, blow);
         //        cout << "\nblow in draw scene = ";
         //        cout << blow, "\n";
     }
@@ -274,8 +278,8 @@ void animateAliens(int value)
     if (!gameOver)
     {
         // move aliens
-        if ((arrayAliens[0][0].getCenterX() <= -edge && deltaX < 0) ||
-            (arrayAliens[0][COLUMNS-1].getCenterX() >= edge && deltaX > 0))
+        if ((arrayAliens[0][0][0].getCenterX() <= -edge && deltaX < 0) ||
+            (arrayAliens[0][COLUMNS-1][0].getCenterX() >= edge && deltaX > 0))
         { // step down and reverse direction
             deltaY = -5 * abs(deltaX);  // adjust step down here
             deltaX = -deltaX;
@@ -283,13 +287,14 @@ void animateAliens(int value)
         
         for (int j=0; j<COLUMNS; j++)
             for (int i=0; i<ROWS; i++)
-            {
-                // if this alien is "marked" then deal... at least set radius to 0
-                if (arrayAliens[i][j].getRadius() > 0 &&
-                    arrayAliens[i][j].getCenterY() + deltaY  <= bottom)
-                    gameOver = 1; // lose on next cycle
-                arrayAliens[i][j].adjustCenter(deltaX, deltaY, 0.0);
-            }
+                for (int k=0; k<AISLES; k++)
+                {
+                    // if this alien is "marked" then deal... at least set radius to 0
+                    if (arrayAliens[i][j][k].getRadius() > 0 &&
+                        arrayAliens[i][j][k].getCenterY() + deltaY  <= bottom)
+                        gameOver = 1; // lose on next cycle
+                    arrayAliens[i][j][k].adjustCenter(deltaX, deltaY, 0.0);
+                }
     }
     
     glutPostRedisplay();
@@ -304,7 +309,7 @@ void animateAliens(int value)
 // Initialization routine.
 void setup(void)
 {
-    int i, j;
+    int i, j, k;
     
     cannon = glGenLists(1);
     glNewList(cannon, GL_COMPILE);
@@ -320,11 +325,12 @@ void setup(void)
     // Initialize global arrayAliens.
     for (j=0; j<COLUMNS; j++)
         for (i=0; i<ROWS; i++)
-            // assume even number of columns.
-            // x,y,z r (2..3 radius)  RGB
-            arrayAliens[i][j] = Alien( 15 + 30.0*(-COLUMNS/2 + j), 120.0 - 30.0*i, zPlane,
-                                      (double) (rand() % 2 + 2),
-                                      188, 188, 0);
+            for (k=0; k<AISLES; k++)
+                // assume even number of columns.
+                // x,y,z r (2..3 radius)  RGB
+                arrayAliens[i][j][k] = Alien( 15 + 30.0*(-COLUMNS/2 + j), 120.0 - 30.0*i, zPlane,
+                                             (double) (rand() % 2 + 2),
+                                             188, 188, 0);
     
     glEnable(GL_DEPTH_TEST);
     glClearColor (0.0, 0.0, 0.0, 0.0);
@@ -342,18 +348,18 @@ void resize(int w, int h)
     glMatrixMode(GL_MODELVIEW);
 }
 
-void alienHit(int i, int j, float x){
+void alienHit(int i, int j, int k, float x){
     
-    float alienHitRadius = arrayAliens[i][j].getRadius();
+    float alienHitRadius = arrayAliens[i][j][k].getRadius();
     //    cout << alienHitRadius; //debug
     
     //    alienHitRadius *= blow;
-    //    arrayAliens[i][j].setRadius(alienHitRadius);
+    //    arrayAliens[i][j][k].setRadius(alienHitRadius);
     
     if(blow == 3){
         alienHitRadius *= blow;
-        arrayAliens[i][j] = Alien(arrayAliens[i][j].getCenterX(), arrayAliens[i][j].getCenterY(), arrayAliens[i][j].getCenterZ(), arrayAliens[i][j].getRadius(), 255, 0, 0);
-        arrayAliens[i][j].setRadius(alienHitRadius);
+        arrayAliens[i][j][k] = Alien(arrayAliens[i][j][k].getCenterX(), arrayAliens[i][j][k].getCenterY(), arrayAliens[i][j][k].getCenterZ(), arrayAliens[i][j][k].getRadius(), 255, 0, 0);
+        arrayAliens[i][j][k].setRadius(alienHitRadius);
         //        cout << "\ndebug if 1-> ";
         //        cout << blow, "\n";
         blow = 1;
@@ -361,7 +367,7 @@ void alienHit(int i, int j, float x){
         //        cout << blow, "\n";
     }
     else if(blow == 1){
-        arrayAliens[i][j].setRadius(0);
+        arrayAliens[i][j][k].setRadius(0);
         //        cout << "\ndebug else if 1-> ";
         //        cout <<  blow, "\n";
         blow = 3;
@@ -370,7 +376,7 @@ void alienHit(int i, int j, float x){
         hit = 0;
     }
     //    cout << alienHitRadius; //debug
-    //    arrayAliens[i][j].setRadius(0);
+    //    arrayAliens[i][j][k].setRadius(0);
 }
 
 void animateCannonBall(int value)
@@ -379,7 +385,7 @@ void animateCannonBall(int value)
     float canY;
     float canZ;
     float canRad;
-    int i,j;
+    int i,j,k;
     
     if (cannonBall.getCenterY() < top)
     {
@@ -392,20 +398,23 @@ void animateCannonBall(int value)
         // Check for collision with each Alien
         for (j=0; j<COLUMNS; j++)
             for (i=0; i<ROWS; i++)
-                if (arrayAliens[i][j].getRadius() > 0 ){ // If Alien exists.
-                    if ( checkSpheresIntersection(canX, canY, canZ, canRad,
-                                                  arrayAliens[i][j].getCenterX(), arrayAliens[i][j].getCenterY(),
-                                                  arrayAliens[i][j].getCenterZ(), arrayAliens[i][j].getRadius())){
-                        cannonBall.setRadius(0);
-                        score += 10;
-                        cannonBall.adjustCenter(0, 141, 0);
-                        canShoot = 1;
-                        
-                        alienHiti = i;
-                        alienHitj = j;
-                        hit = 1;
+                for (k=0; k<AISLES; k++)
+                    if (arrayAliens[i][j][k].getRadius() > 0 ){ // If Alien exists.
+                        if ( checkSpheresIntersection(canX, canY, canZ, canRad,
+                                                      arrayAliens[i][j][k].getCenterX(), arrayAliens[i][j][k].getCenterY(),
+                                                      arrayAliens[i][j][k].getCenterZ(), arrayAliens[i][j][k].getRadius())){
+                            cannonBall.setRadius(0);
+                            score += 10;
+                            cannonBall.adjustCenter(0, 141, 0);
+                            canShoot = 1;
+                            
+                            alienHiti = i;
+                            alienHitj = j;
+                            alienHitk = k;
+                            
+                            hit = 1;
+                        }
                     }
-                }
         
         glutPostRedisplay();
         glutTimerFunc(5, animateCannonBall, 1);
