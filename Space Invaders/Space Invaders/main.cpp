@@ -67,7 +67,7 @@ float blow = 3;
 
 #define ROWS 4  // Number of rows of Aliens.
 #define COLUMNS 8 // Number of columns of Aliens.
-#define AISLES 4 // Number of layers (z) of aliens
+#define AISLES 3 // Number of layers (z) of aliens
 
 using namespace std;
 
@@ -328,10 +328,22 @@ void setup(void)
             for (k=0; k<AISLES; k++)
                 // assume even number of columns.
                 // x,y,z r (2..3 radius)  RGB
-                arrayAliens[i][j][k] = Alien( 15 + 30.0*(-COLUMNS/2 + j), 120.0 - 30.0*i, zPlane,
+                if (k == 0) {
+                    arrayAliens[i][j][k] = Alien( 15 + 30.0*(-COLUMNS/2 + j), 120.0 - 30.0*i, zPlane,
                                              (double) (rand() % 2 + 2),
-                                             188, 188, 0);
-    
+                                              255, 150, 50);
+                }
+                else if (k == 1){
+                    arrayAliens[i][j][k] = Alien( 15 + 30.0*(-COLUMNS/2 + j), 120.0 - 30.0*i, zPlane - 25,
+                                                 (double) (rand() % 2 + 2),
+                                                 150, 50, 255);
+                }
+                else if (k == 2){
+                    arrayAliens[i][j][k] = Alien( 15 + 30.0*(-COLUMNS/2 + j), 120.0 - 30.0*i, zPlane - 50,
+                                                 (double) (rand() % 2 + 2),
+                                                 30, 255, 50);
+                }
+
     glEnable(GL_DEPTH_TEST);
     glClearColor (0.0, 0.0, 0.0, 0.0);
     
