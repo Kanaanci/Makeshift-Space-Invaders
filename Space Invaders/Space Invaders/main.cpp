@@ -38,16 +38,17 @@
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
+#include<vector>
 
 #ifdef __APPLE__
 //#  include <GL/glew.h>
 #  include <GLUT/GLUT.h>
 #  include <OpenGL/glext.h>
 #else
-#  include <GL/glew.h>
+//#  include <GL/glew.h>
 #  include <GL/freeglut.h>
 #  include <GL/glext.h>
-#pragma comment(lib, "glew32.lib")
+//#pragma comment(lib, "glew32.lib")
 #endif
 
 #define PI 3.14159265
@@ -59,8 +60,13 @@ static float deltaX = 5.0; // speed for an alien
 static float zPlane = -60.0; // where all the action is
 static float yCannon = -100.0; // translate for cannon
 static int gameOver = 0; // if game is over, probably started a final animation
-static int canShoot = 1; // cannon ready to fire
 int score = 0; //score of the game
+//static float maxAngle = 300.0;
+static float maxAngle = 30.0;
+//static float minAngle = 240;
+//float tiltAngle = 270.0;
+float tiltAngle = 0.0;
+float rotation = 0;
 int hit, alienHiti, alienHitj, alienHitk = 0;
 float blow = 3;
 
@@ -73,7 +79,6 @@ using namespace std;
 
 // Globals.
 static float xVal = 0; // Co-ordinates of the cannon (xVal, 0, zPlane)
-//static int isCollision = 0; // Is there collision between the cannonball and an Alien?
 static unsigned int cannon; // Display lists base index.
 
 // Alien class.
@@ -153,7 +158,8 @@ void Alien::draw()
 }
 
 Alien arrayAliens[ROWS][COLUMNS][AISLES]; // Global array of Aliens.
-Alien cannonBall;
+vector<Alien> cannonBall;
+vector<vector<float>> cannonballLoc; //store current xVal, rotation, and tiltAngle when cannonball is fired
 
 
 // Function to check if two spheres centered at (x1,y1,z1) and (x2,y2,z2) with
@@ -177,13 +183,13 @@ int AlienCraftCollision(float x, float z, float a)
             for (k=0; k<AISLES; k++)
                 if (arrayAliens[i][j][k].getRadius() > 0 ){ // If Alien exists.
                     if ( checkSpheresIntersection( x - 5 * sin( (PI/180.0) * a), 0.0,
-                                              z - 5 * cos( (PI/180.0) * a), 7.072,
-                                              arrayAliens[i][j][k].getCenterX(), arrayAliens[i][j][k].getCenterY(),
-                                              arrayAliens[i][j][k].getCenterZ(), arrayAliens[i][j][k].getRadius() ) ){
-                    return 1;
-                    
+                                                  z - 5 * cos( (PI/180.0) * a), 7.072,
+                                                  arrayAliens[i][j][k].getCenterX(), arrayAliens[i][j][k].getCenterY(),
+                                                  arrayAliens[i][j][k].getCenterZ(), arrayAliens[i][j][k].getRadius() ) ){
+                        return 1;
+                        
+                    }
                 }
-            }
     return 0;
 }
 
@@ -227,12 +233,17 @@ void drawScene(void)
     
     glLoadIdentity();
     
-//    gluLookAt(0.0, 5.0, 20.0,  0.0, 5.0, 0.0,  0.0, 1.0, 0.0);
-        gluLookAt(0.0, -150.0, 5.0,  0.0, 20.0, 0.0,  0.0, 1.0, 0.0);
-    //    gluLookAt(125.0, -90.0, zPlane,  0.0, -90.0, zPlane,  0.0, 1.0, 0.0); // side view
-    //    gluLookAt(25.0, -100.0, zPlane,  0.0, -100.0, zPlane,  0.0, 1.0, 0.0); // side close up
+    //gluLookAt(0.0, 5.0, 20.0,  0.0, 5.0, 0.0,  0.0, 1.0, 0.0);
+    gluLookAt(0.0, -150.0, 5.0,  0.0, 20.0, 0.0,  0.0, 1.0, 0.0);
+    //gluLookAt(125.0, -90.0, zPlane,  0.0, -90.0, zPlane,  0.0, 1.0, 0.0); // side view
+    //gluLookAt(25.0, -100.0, zPlane,  0.0, -100.0, zPlane,  0.0, 1.0, 0.0); // side close up
     
     displayScore(); //displays the score on the screen
+    
+    //Draw cannonballs to the screen
+    for (unsigned int i = 0; i < cannonBall.size(); i++) {
+        cannonBall.at(i).draw(); // only appears if r>0
+    }
     
     // Draw all the Aliens (with radius > 0) in arrayAliens
     for (j=0; j<COLUMNS; j++)
@@ -240,16 +251,24 @@ void drawScene(void)
             for (k=0; k<AISLES; k++)
                 arrayAliens[i][j][k].draw();
     
-    cannonBall.draw(); // only appears if r>0
-    
     glTranslatef(xVal, yCannon, zPlane);
+    glRotatef(rotation, 0.0, 0.0, 1.0);
+    glRotatef(tiltAngle, 1.0, 0.0, 0.0);
     glCallList(cannon);
+    //glTranslatef(-xVal, -yCannon, -zPlane);
     
-    if(score >= 320){
+    /*
+     glTranslatef(xVal, yCannon, zPlane);
+     glRotatef(rotation, 0.0, 1.0, 0.0);
+     glRotatef(tiltAngle, 1.0, 0.0, 0.0);
+     glCallList(cannon);
+     */
+    
+    if(score >= 960){
         gameOver = 1;
         displayEndText("Winner!");
     }
-    else if(gameOver && score < 320){
+    else if(gameOver && score < 960){
         displayEndText("You Lose!");
     }
     
@@ -314,13 +333,11 @@ void setup(void)
     cannon = glGenLists(1);
     glNewList(cannon, GL_COMPILE);
     glPushMatrix();
-    glRotatef(90.0, -1.0, 0.0, 0.0); // To make the cannon point up the y-axis
+    glRotatef(tiltAngle, -1.0, 0.0, 0.0); // To make the cannon point up the y-axis
     glColor3f (1.0, 1.0, 1.0);
     glutWireCone(5.0, 10.0, 10, 10);
     glPopMatrix();
     glEndList();
-    
-    cannonBall = Alien(0.0, 0.0, 0.0, 0, 255, 0, 255);
     
     // Initialize global arrayAliens.
     for (j=0; j<COLUMNS; j++)
@@ -330,8 +347,8 @@ void setup(void)
                 // x,y,z r (2..3 radius)  RGB
                 if (k == 0) {
                     arrayAliens[i][j][k] = Alien( 15 + 30.0*(-COLUMNS/2 + j), 120.0 - 30.0*i, zPlane,
-                                             (double) (rand() % 2 + 2),
-                                              255, 150, 50);
+                                                 (double) (rand() % 2 + 2),
+                                                 255, 150, 50);
                 }
                 else if (k == 1){
                     arrayAliens[i][j][k] = Alien( 15 + 30.0*(-COLUMNS/2 + j), 120.0 - 30.0*i, zPlane - 25,
@@ -343,7 +360,7 @@ void setup(void)
                                                  (double) (rand() % 2 + 2),
                                                  30, 255, 50);
                 }
-
+    
     glEnable(GL_DEPTH_TEST);
     glClearColor (0.0, 0.0, 0.0, 0.0);
     
@@ -363,7 +380,7 @@ void resize(int w, int h)
 void alienHit(int i, int j, int k, float x){
     
     float alienHitRadius = arrayAliens[i][j][k].getRadius();
-    //    cout << alienHitRadius; //debug
+    //        cout << alienHitRadius; //debug
     
     //    alienHitRadius *= blow;
     //    arrayAliens[i][j][k].setRadius(alienHitRadius);
@@ -372,23 +389,31 @@ void alienHit(int i, int j, int k, float x){
         alienHitRadius *= blow;
         arrayAliens[i][j][k] = Alien(arrayAliens[i][j][k].getCenterX(), arrayAliens[i][j][k].getCenterY(), arrayAliens[i][j][k].getCenterZ(), arrayAliens[i][j][k].getRadius(), 255, 0, 0);
         arrayAliens[i][j][k].setRadius(alienHitRadius);
-        //        cout << "\ndebug if 1-> ";
-        //        cout << blow, "\n";
+        //                cout << "\ndebug if 1-> ";
+        //                cout << blow, "\n";
         blow = 1;
         //        cout << "\ndebug if 2-> ";
-        //        cout << blow, "\n";
+        //                cout << blow, "\n";
     }
     else if(blow == 1){
         arrayAliens[i][j][k].setRadius(0);
-        //        cout << "\ndebug else if 1-> ";
-        //        cout <<  blow, "\n";
+        //                cout << "\ndebug else if 1-> ";
+        //                cout <<  blow, "\n";
         blow = 3;
-        //        cout << "\ndebug else if 2-> ";
-        //        cout << blow, "\n";
+        //                cout << "\ndebug else if 2-> ";
+        //                cout << blow, "\n";
         hit = 0;
     }
-    //    cout << alienHitRadius; //debug
+    //        cout << alienHitRadius; //debug
     //    arrayAliens[i][j][k].setRadius(0);
+}
+
+void createCannonball() {
+    Alien newBall = Alien(xVal, yCannon+5, zPlane, 1, 255, 0, 255);
+    vector<float> loc = {xVal, rotation, tiltAngle}; //save current xVal, rotation, and tiltAngle when cannonball is fired. This is used during cannonBall animation to get correct orientation
+    //cout << "xVal: " << xVal << endl << "rotation: " << rotation << endl << "tiltAngle: " << tiltAngle << endl;
+    cannonballLoc.push_back(loc);
+    cannonBall.push_back(newBall);
 }
 
 void animateCannonBall(int value)
@@ -397,63 +422,86 @@ void animateCannonBall(int value)
     float canY;
     float canZ;
     float canRad;
-    int i,j,k;
+    int i,j,n;
     
-    if (cannonBall.getCenterY() < top)
-    {
-        cannonBall.adjustCenter(0,1,0);
-        // check for a hit
-        canX = cannonBall.getCenterX();
-        canY = cannonBall.getCenterY();
-        canZ = cannonBall.getCenterZ();
-        canRad = cannonBall.getRadius();
-        // Check for collision with each Alien
-        for (j=0; j<COLUMNS; j++)
-            for (i=0; i<ROWS; i++)
-                for (k=0; k<AISLES; k++)
-                    if (arrayAliens[i][j][k].getRadius() > 0 ){ // If Alien exists.
-                        if ( checkSpheresIntersection(canX, canY, canZ, canRad,
-                                                      arrayAliens[i][j][k].getCenterX(), arrayAliens[i][j][k].getCenterY(),
-                                                      arrayAliens[i][j][k].getCenterZ(), arrayAliens[i][j][k].getRadius())){
-                            cannonBall.setRadius(0);
-                            score += 10;
-                            cannonBall.adjustCenter(0, 141, 0);
-                            canShoot = 1;
-                            
-                            alienHiti = i;
-                            alienHitj = j;
-                            alienHitk = k;
-                            
-                            hit = 1;
-                        }
-                    }
+    if (!cannonBall.empty()) {
+        for (unsigned int k = 0; k < cannonBall.size(); k++) {
+            if (cannonBall.at(k).getCenterY() < top)
+            {
+                glTranslatef(cannonballLoc.at(k).at(0), yCannon, zPlane);
+                glRotatef(cannonballLoc.at(k).at(1), 0.0, 0.0, 1.0);
+                glRotatef(cannonballLoc.at(k).at(2), 1.0, 0.0, 0.0);
+                cannonBall.at(k).adjustCenter(0,1,0);
+                // check for a hit
+                canX = cannonBall.at(k).getCenterX();
+                canY = cannonBall.at(k).getCenterY();
+                canZ = cannonBall.at(k).getCenterZ();
+                canRad = cannonBall.at(k).getRadius();
+                // Check for collision with each Alien
+                
+                for (j=0; j<COLUMNS; j++)
+                    for (i=0; i<ROWS; i++)
+                        for (n=0; n<AISLES; n++)
+                            if (arrayAliens[i][j][n].getRadius() > 0 ){ // If Alien exists.
+                                if ( checkSpheresIntersection(canX, canY, canZ, canRad,
+                                                              arrayAliens[i][j][n].getCenterX(), arrayAliens[i][j][n].getCenterY(),
+                                                              arrayAliens[i][j][n].getCenterZ(), arrayAliens[i][j][n].getRadius())){
+                                    //                                    arrayAliens[i][j][n].setRadius(0);
+                                    cannonBall.at(k).adjustCenter(0, 141, 0);
+                                    cannonBall.at(k).setRadius(0);
+                                    cannonBall.erase(cannonBall.begin() + k);
+                                    cannonballLoc.erase(cannonballLoc.begin() + k);
+                                    score += 10;
+                                    alienHiti = i;
+                                    alienHitj = j;
+                                    alienHitk = n;
+                                    hit = 1;
+                                }
+                            }
+                
+                glutPostRedisplay();
+                
+            }
+            else
+            {
+                cannonBall.at(k).setRadius(0);
+                cannonBall.erase(cannonBall.begin() + k);
+                cannonballLoc.erase(cannonballLoc.begin() + k);
+                
+                glutPostRedisplay();
+            }
+        }
         
-        glutPostRedisplay();
         glutTimerFunc(5, animateCannonBall, 1);
+        
     }
-    else
-    {
-        cannonBall.setRadius(0);
-        canShoot = 1;
-    }
-    
 }
 
 // Keyboard input processing routine.
 void keyInput(unsigned char key, int x, int y)
 {
+    float tempRotation = rotation;
+    
     switch (key)
     {
             // use space key to shoot upwards from cannon location
         case ' ':
-            if (canShoot)
-            {
-                canShoot = 0; // need a delay here
-                cannonBall.setRadius(1); // displayable
-                cannonBall.setCenter(xVal, yCannon+5, zPlane);
+            if (cannonBall.empty()) {
+                createCannonball();
                 animateCannonBall(1);
-                //glutTimerFunc(50, animateCannonBall, 1);
             }
+            else createCannonball();
+            break;
+        case 'q':
+            tempRotation = tempRotation - 5;
+            if ((tempRotation) >= -180)
+                rotation = tempRotation;
+            break;
+            
+        case 'e':
+            tempRotation = tempRotation + 5;
+            if((tempRotation <= 180))
+                rotation = tempRotation;
             break;
         case 27:
             exit(0);
@@ -461,22 +509,46 @@ void keyInput(unsigned char key, int x, int y)
         default:
             break;
     }
+    
+    glutPostRedisplay();
+    
 }
 
 // Callback routine for non-ASCII key entry.
 void specialKeyInput(int key, int x, int y)
 {
     float tempxVal = xVal;
+    float tempTiltAngle;
     
     // Compute next position.
-    if (key == GLUT_KEY_LEFT) tempxVal = xVal - 5.0;
-    if (key == GLUT_KEY_RIGHT) tempxVal = xVal + 5.0;
+    if (key == GLUT_KEY_LEFT){ tempxVal = xVal - 5.0; tempTiltAngle = tiltAngle;}
+    if (key == GLUT_KEY_RIGHT){ tempxVal = xVal + 5.0; tempTiltAngle = tiltAngle;}
+    if (key == GLUT_KEY_UP){ tempTiltAngle = tiltAngle + 5.0;}
+    if (key == GLUT_KEY_DOWN){ tempTiltAngle = tiltAngle - 5.0;}
     
+    // Move cannon to next position only if not offscreen.
     // Move cannon to next position only if not offscreen.
     if (abs(tempxVal) <= edge)
     {
         xVal = tempxVal;
     }
+    // Tilt cannon if it is (-30 <= tiltAngle <= 30)
+    if (abs(tempTiltAngle) <= maxAngle)
+    {
+        tiltAngle = tempTiltAngle;
+    }
+    
+    /*
+     if (abs(tempxVal) <= edge)
+     {
+     xVal = tempxVal;
+     }
+     // Tilt cannon if it is (-30 <= tiltAngle <= 30)
+     if ((tempTiltAngle >= minAngle) && (tempTiltAngle <= maxAngle))
+     {
+     tiltAngle = tempTiltAngle;
+     }
+     */
     
     glutPostRedisplay();
 }
